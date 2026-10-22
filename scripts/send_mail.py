@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phương án dự phòng gửi Gmail qua SMTP khi agent không có connector Gmail.
+"""Gửi Gmail qua SMTP, kèm file HTML + Excel. Chạy được ở mọi nơi (Claude Code, Codex, GitHub Actions) vì không cần connector.
 
   GMAIL_USER=... GMAIL_APP_PASSWORD=... python scripts/send_mail.py out/2026-10-21/result.json [--check]
 
@@ -32,31 +32,40 @@ def build(action: dict, sender: str) -> EmailMessage:
     return msg
 
 
-def main() -> int:
-    sys.stdout.reconfigure(encoding="utf-8")
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    check = "--check" in sys.argv
-    if not args:
-        print(__doc__)
-        return 1
-    result = json.loads(Path(args[0]).read_text(encoding="utf-8"))
+def send_actions(result_path: str, check: bool = False) -> list[str]:
+    """Gửi mọi action gmail có send=true. Trả danh sách dòng nhật ký; ném RuntimeError nếu thiếu thông tin đăng nhập."""
+    result = json.loads(Path(result_path).read_text(encoding="utf-8"))
     user, pwd = os.environ.get("GMAIL_USER", ""), os.environ.get("GMAIL_APP_PASSWORD", "")
-    todo = [a for a in result["actions"] if a["channel"] == "gmail"]
-    for a in todo:
+    log = []
+    for a in (x for x in result["actions"] if x["channel"] == "gmail"):
         if not a["send"]:
-            print(f"BỎ QUA (mode={result['mode']}): {a['kind']} -> {a['to']}")
+            log.append(f"BỎ QUA (mode={result['mode']}): {a['kind']} -> {a['to']}")
             continue
         msg = build(a, user or "me")
         if check:
-            print(f"[check] {msg['Subject']} -> {msg['To']} cc={msg['Cc']} ({len(msg.as_bytes())} bytes)")
+            log.append(f"[check] {msg['Subject']} -> {msg['To']} cc={msg['Cc']} ({len(msg.as_bytes())} bytes)")
             continue
         if not (user and pwd):
-            print("Thiếu GMAIL_USER / GMAIL_APP_PASSWORD", file=sys.stderr)
-            return 1
+            raise RuntimeError("Thiếu GMAIL_USER / GMAIL_APP_PASSWORD")
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
             s.login(user, pwd)
             s.send_message(msg)
-        print(f"ĐÃ GỬI: {msg['Subject']} -> {msg['To']}")
+        log.append(f"ĐÃ GỬI: {msg['Subject']} -> {msg['To']}")
+    return log
+
+
+def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if not args:
+        print(__doc__)
+        return 1
+    try:
+        for line in send_actions(args[0], "--check" in sys.argv):
+            print(line)
+    except RuntimeError as e:
+        print(e, file=sys.stderr)
+        return 1
     return 0
 
 

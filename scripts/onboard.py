@@ -5,6 +5,7 @@
   python scripts/onboard.py inspect <file|thư mục> ...   # phân tích cấu trúc từng file (JSON)
   python scripts/onboard.py write-config answers.json    # ghi config/*.yaml + config/schedule.yaml
   python scripts/onboard.py collect --out inbox          # chép file cục bộ (local_path) vào inbox để chạy ngay
+  python scripts/onboard.py make-workflow                # tạo .github/workflows/bao-cao-doanh-so.yml (lịch chạy GitHub Actions, không cần agent)
 
 Cấu trúc answers.json: xem docs/HUONG-DAN-SU-DUNG.md (mục "Thiết lập") hoặc references/answers.example.json.
 """
@@ -223,6 +224,57 @@ def cmd_collect(a) -> int:
     return 0
 
 
+WORKFLOW = """name: Báo cáo doanh số tự động
+# Tạo bởi scripts/onboard.py make-workflow từ config/schedule.yaml. Chạy trên máy chủ GitHub — không cần mở máy, không cần agent.
+# Cần repo RIÊNG TƯ (config có email) và secrets: GMAIL_USER, GMAIL_APP_PASSWORD (mật khẩu ứng dụng Gmail).
+on:
+  schedule:
+    - cron: "{cron}"   # {desc}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (không gửi) | test (chỉ người phụ trách) | live"
+        default: "dry-run"
+permissions:
+  contents: write
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Tải file nguồn, tính, tạo báo cáo, gửi email
+        env:
+          GMAIL_USER: ${{{{ secrets.GMAIL_USER }}}}
+          GMAIL_APP_PASSWORD: ${{{{ secrets.GMAIL_APP_PASSWORD }}}}
+        run: python scripts/auto_run.py --mode ${{{{ github.event.inputs.mode || 'live' }}}}
+      - name: Lưu hàng đợi Zalo (gửi bù khi người dùng bật máy)
+        run: |
+          git config user.name "bao-cao-doanh-so-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add zalo-queue || true
+          git diff --cached --quiet || (git commit -m "Hàng đợi Zalo" && git push)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bao-cao-doanh-so
+          path: out/
+          retention-days: 30
+"""
+
+
+def cmd_make_workflow(_a) -> int:
+    sched = load_yaml("schedule.yaml")
+    target = SKILL / ".github" / "workflows" / "bao-cao-doanh-so.yml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(WORKFLOW.format(cron=sched["cron_utc"], desc=sched.get("description", "")), encoding="utf-8")
+    print(json.dumps({"written": str(target), "cron_utc": sched["cron_utc"]}, ensure_ascii=False))
+    return 0
+
+
 def main() -> int:
     for s in (sys.stdout, sys.stderr):
         s.reconfigure(encoding="utf-8")
@@ -231,6 +283,7 @@ def main() -> int:
     sub.add_parser("status").set_defaults(fn=cmd_status)
     p = sub.add_parser("inspect"); p.add_argument("paths", nargs="+"); p.set_defaults(fn=cmd_inspect)
     p = sub.add_parser("write-config"); p.add_argument("answers"); p.set_defaults(fn=cmd_write_config)
+    sub.add_parser("make-workflow").set_defaults(fn=cmd_make_workflow)
     p = sub.add_parser("collect"); p.add_argument("--out", default=str(SKILL / "inbox")); p.set_defaults(fn=cmd_collect)
     a = ap.parse_args()
     return a.fn(a)

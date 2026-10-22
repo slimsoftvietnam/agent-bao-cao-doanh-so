@@ -1,0 +1,4 @@
+interface:
+  display_name: "Báo cáo doanh số"
+  short_description: "Gộp Excel từng người, báo cáo HTML + Excel, gửi Gmail và Zalo, lịch tuần/ngày"
+  default_prompt: "Dùng $bao-cao-doanh-so để thiết lập báo cáo doanh số: hỏi file Excel từng người, email, nhóm Zalo và lịch chạy, rồi phân tích, tạo báo cáo HTML + Excel và gửi."

@@ -162,6 +162,35 @@ with tempfile.TemporaryDirectory() as t:
     check("onboard→chạy live bằng config mới (4 người, tuần, gửi a@congty.vn)", r["kind"] == "week" and len(r["metrics"]["people"]) == 4
           and r["actions"][0]["to"] == ["a@congty.vn"] and r["send_team_report"], str(r["issues"]))
 
+# --- chạy không cần agent: tải link, hàng đợi Zalo, workflow, gửi thư (dựng)
+import threading, http.server, functools  # noqa: E402
+from fetch_sources import download, source_url  # noqa: E402
+import zalo_queue  # noqa: E402
+import send_mail  # noqa: E402
+with tempfile.TemporaryDirectory() as t:
+    build(Path(t) / "srv", "ok")
+    h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(Path(t) / "srv"))
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), h)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    (Path(t) / "dl").mkdir()
+    got = download(f"http://127.0.0.1:{srv.server_address[1]}/Doanh_so_An_T10.xlsx", Path(t) / "dl", "x.xlsx")
+    srv.shutdown(); srv.server_close()
+    check("fetch: tải file qua URL", got.exists() and got.stat().st_size == (Path(t) / "srv" / "Doanh_so_An_T10.xlsx").stat().st_size)
+    check("fetch: URL Drive và Sheets", source_url({"id": "a", "drive": {"file_id": "ABC"}})[0].endswith("id=ABC")
+          and "gviz/tq" in source_url({"id": "b", "type": "gsheet", "gsheet": {"spreadsheet_id": "S", "sheet_name": "Chi tiết"}})[0]
+          and source_url({"id": "c", "drive": {"folder_id": "F"}}) is None)
+    build(Path(t) / "in", "ok")
+    r = run(Path(t) / "in", Path(t) / "out", CONFIG, "test", RD, NOW)
+    qf = Path(t) / "q.jsonl"
+    added = zalo_queue.add_from_result(r["result_path"], qf)
+    again = zalo_queue.add_from_result(r["result_path"], qf)
+    check("hàng đợi Zalo: xếp 1 tin, không trùng", len(added) == 1 and again == [] and zalo_queue.load(qf)[0]["status"] == "pending")
+    rows = zalo_queue.load(qf); rows[0]["status"] = "sent"; zalo_queue.save(rows, qf)
+    check("hàng đợi Zalo: đánh dấu đã gửi", zalo_queue.load(qf)[0]["status"] == "sent")
+    check("gửi thư: dựng thư kèm 2 file đính kèm (SMTP --check)", any("[check]" in x for x in send_mail.send_actions(r["result_path"], check=True)))
+    msg = send_mail.build(r["actions"][0], "x@y.z")
+    check("gửi thư: có file .xlsx và .html đính kèm", sorted(p.get_filename().rsplit(".", 1)[1] for p in msg.iter_attachments()) == ["html", "xlsx"])
+
 # --- test mode: chỉ người phụ trách; live bị chặn khi còn email mẫu
 test = scenario("ok", "test")
 check("test: chỉ gửi người phụ trách", all(a["to"] == ["nguoi.phu.trach@example.com"] for a in test["actions"] if a["channel"] == "gmail"))

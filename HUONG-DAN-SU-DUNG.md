@@ -2,7 +2,7 @@
 
 ## 1. Chuẩn bị (5 phút)
 
-1. Cài skill (xem [README](README.md)) và bật 3 connector trong *claude.ai → Settings → Connectors*: **Gmail, Google Drive, Google Sheets**.
+1. Cài skill cho **Claude Code** hoặc **Codex** (xem [README](README.md)). Claude Code: bật 3 connector trong *claude.ai → Settings → Connectors*: **Gmail, Google Drive, Google Sheets**. Codex (hoặc không dùng connector): chuẩn bị *mật khẩu ứng dụng Gmail* (`GMAIL_USER`, `GMAIL_APP_PASSWORD`) và file nguồn ở máy hoặc link Drive chia sẻ công khai.
 2. Gom sẵn: file Excel/CSV doanh số của **từng người** (mỗi người một file; file có thể khác cấu trúc), danh sách email nhận báo cáo, tên chính xác nhóm Zalo (nếu dùng).
 3. Muốn lịch chạy khi **tắt máy**: tải các file lên **Google Drive** (một thư mục hoặc link từng file) hoặc dùng Google Sheets. File chỉ nằm trên máy thì chỉ chạy thử được.
 
@@ -40,10 +40,19 @@ Quy trình khuyên dùng: `dry-run` → `test` → `live`. Địa chỉ `@exampl
 4. **Prompt:** dán `routine_prompt` trong `config/schedule.yaml`. Chạy *Run now* với `mode=dry-run` vài lần rồi đổi sang `mode=live`.
 5. **Đính kèm file vào email (khuyến nghị):** tạo *Mật khẩu ứng dụng* cho Gmail, thêm biến môi trường `GMAIL_USER` và `GMAIL_APP_PASSWORD` vào môi trường của routine. Không có hai biến này, email vẫn gửi nhưng là bản rút gọn, không đính kèm HTML/Excel.
 
+### 4b. Đặt lịch bằng GitHub Actions (Codex và mọi agent — không cần agent lúc chạy)
+
+1. `python scripts/onboard.py make-workflow` tạo `.github/workflows/bao-cao-doanh-so.yml` theo `config/schedule.yaml`.
+2. Đẩy repo **riêng tư** (có `config/` và workflow) lên GitHub; vào *Settings → Secrets and variables → Actions* thêm `GMAIL_USER`, `GMAIL_APP_PASSWORD`.
+3. Vào tab *Actions → Báo cáo doanh số tự động → Run workflow* với `mode=dry-run` để thử, rồi để lịch chạy `live`.
+4. Workflow chạy `scripts/auto_run.py`: tải file nguồn (link chia sẻ công khai trong `config/sources.yaml`) → tính → tạo báo cáo → gửi email SMTP kèm HTML + Excel → xếp tin Zalo vào `zalo-queue/pending.jsonl` (tự commit). Báo cáo cũng được lưu trong *Artifacts* 30 ngày.
+5. Hạn chế: không đọc được file Drive riêng tư (cần connector Drive của Claude Code); GitHub có thể trễ vài phút so với giờ hẹn.
+
 ## 5. Zalo và hàng đợi
 
 - Lần đầu dùng Zalo: mở `chat.zalo.me` trong Claude, **quét QR** bằng điện thoại (agent không đăng nhập thay bạn).
 - Trên đám mây thường không có Zalo Web → agent **bỏ qua Zalo**, ghi tin vào Google Sheet `ZaloQueue` (trạng thái `pending`) và gửi email như bình thường.
+- Hàng đợi dạng file: `zalo-queue/pending.jsonl` (`python scripts/zalo_queue.py list` / `mark-sent <id>`); dạng Sheet: tab `ZaloQueue`.
 - Khi bạn **bật máy**, tác vụ cục bộ "Gửi Zalo tồn đọng" (hoặc bạn gõ `Gửi Zalo tồn đọng`) đọc hàng đợi, gửi vào đúng nhóm Zalo rồi đánh dấu `sent`.
 - Tạo Sheet `ZaloQueue`: một Google Sheet trống bất kỳ, gửi link cho agent; agent ghi vào `config/recipients.yaml › zalo_queue`.
 
