@@ -26,6 +26,16 @@ Mọi con số do **Python** tính; Claude chỉ hỏi, lấy file, gửi thư/Z
 2. **Tự phân tích:** nhận diện cột → gộp file → tính doanh thu kỳ, lũy kế tháng, đạt mục tiêu, so kỳ trước, top 3 sản phẩm, doanh thu từng người → kiểm tra bất thường → tạo báo cáo HTML (phong cách bảng điều khiển, có lọc kỳ và xem chi tiết từng người) + Excel tổng hợp.
 3. **Gửi kết quả:** ghi bảng kết quả vào Google Sheet tổng hợp, email cho bạn (kèm HTML + Excel) và nhóm Zalo. Lịch hằng tuần gửi **tuần trước**; hằng ngày gửi **ngày trước**. Chạy tự động được khi tắt máy; nếu Zalo không gửi được trên môi trường tự động thì **bỏ qua Zalo**, xếp vào hàng đợi và **gửi bù khi bạn bật máy**.
 
+## Google Sheet → chạy tự động hoàn toàn; Excel → nhắc cập nhật
+
+| Bạn đưa cho agent | Điều xảy ra |
+|---|---|
+| **Link Google Sheet** của từng nhân viên (mỗi Sheet một người, link cố định) | **Chạy tự động theo lịch, không cần mở máy.** Đến giờ hẹn, agent trên đám mây tự vào từng Google Sheet xem số liệu từng nhân viên, tạo báo cáo (HTML + Excel) và gửi email. Nhân viên chỉ cần cập nhật số liệu vào Sheet trước giờ hẹn. |
+| **File Excel** trên Drive | Giống Google Sheet: tự đọc theo lịch. Nhắc nhân viên **cập nhật số liệu vào đúng file đó** mỗi kỳ. |
+| **File Excel chỉ nằm trên máy** | Agent **nhắc bạn** đưa file lên Google Drive (hoặc chuyển sang Google Sheets) và cập nhật số liệu ở đó — lịch đám mây không đọc được file trên máy. File trên máy chỉ dùng để chạy thử hoặc chạy khi máy bật. |
+
+Thiếu số liệu của ai trong kỳ → báo cáo **không gửi nhóm**, chỉ cảnh báo người phụ trách; bật `staff_reminders` thì agent còn gửi **email nhắc đúng nhân viên đó** cập nhật số liệu (cc người phụ trách).
+
 ## Cài đặt
 
 **Yêu cầu:** [Claude Code](https://claude.com/claude-code) **hoặc Codex**, Python 3.10+, tài khoản Google (Drive, Gmail), tài khoản Zalo (nếu gửi Zalo).

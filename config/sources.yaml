@@ -29,6 +29,7 @@ sources:
       name_contains: "Doanh_so_An"
     file_patterns: ["Doanh_so_An*"]  # mẫu tên file trong inbox (không phân biệt hoa/thường, dấu, khoảng trắng)
     allow_empty_day: false           # true nếu người này được phép không có doanh số trong ngày
+    # email: "an@congty.vn"          # (tuỳ chọn) nhận email nhắc cập nhật số liệu khi bật staff_reminders
 
   - id: binh
     owner: "Trần Thị Bình"

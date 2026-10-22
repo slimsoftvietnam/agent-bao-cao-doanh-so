@@ -256,6 +256,19 @@ chỉ bạn nhận email này. Sau khi sửa dữ liệu, chạy lại skill đ�
     return _gmail_safe(html)
 
 
+def reminder_html(staff_name: str, period_title: str, where: str, brand: str, owner_name: str) -> str:
+    """Thư nhắc nhân viên cập nhật số liệu (gửi khi kỳ báo cáo thiếu dữ liệu của người đó)."""
+    html = (f'''<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#eceef3"><tr><td align="center" bgcolor="#eceef3" style="padding:18px 10px;font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#262a41">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%"><tr><td bgcolor="#1f1b5c" style="background-color:#1f1b5c;color:#ffffff;padding:20px 24px">
+<div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#c5cae9;font-weight:700">{e(brand)} · Nhắc cập nhật số liệu</div>
+<div style="font-size:20px;font-weight:800;margin-top:6px;color:#ffffff">Chào {e(staff_name)}, cần cập nhật doanh số</div></td></tr>
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:20px 24px;font-size:14px;line-height:1.6">
+Báo cáo doanh số <b>{e(period_title)}</b> chưa phát hành được vì <b>chưa có số liệu của bạn</b> trong kỳ này.<br><br>
+Vui lòng cập nhật doanh số vào: <b>{e(where)}</b>.<br><br>
+Sau khi cập nhật, báo cáo sẽ tự gửi ở lần chạy kế tiếp (hoặc nhờ {e(owner_name)} chạy lại ngay).</td></tr></table></td></tr></table>''')
+    return _gmail_safe(html)
+
+
 def zalo_text(m: dict) -> str:
     rd = m["report_date"]
     dd = f"{rd[8:10]}/{rd[5:7]}/{rd[:4]}"

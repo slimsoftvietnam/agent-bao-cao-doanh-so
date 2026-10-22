@@ -23,6 +23,12 @@ Agent ghi cấu hình vào `config/`, **chạy thử** cho bạn xem báo cáo H
 
 Muốn tự điền: sửa `config/sources.yaml`, `config/recipients.yaml`, `config/schedule.yaml` (hoặc tạo `answers.json` theo `references/answers.example.json` rồi `python scripts/onboard.py write-config answers.json`).
 
+### Chạy tự động: Google Sheet hay Excel?
+
+- **Google Sheet (hoặc file Excel trên Google Drive):** lịch chạy **hoàn toàn trên đám mây, không cần mở máy**. Agent tự vào từng Sheet/file của từng nhân viên, đọc số liệu, tạo báo cáo và gửi email. **Nhân viên cập nhật số liệu thẳng vào Sheet/file đó trước giờ hẹn** (ví dụ trước 8:00 sáng thứ Hai nếu bạn đặt lịch tuần).
+- **File Excel chỉ nằm trên máy:** agent sẽ **nhắc bạn** đưa file lên Drive hoặc chuyển sang Google Sheets, và nhắc cập nhật số liệu ở bản đó. Lịch đám mây không đọc được file trên máy; file trên máy chỉ dùng để chạy thử hoặc khi máy bật.
+- **Nhắc nhân viên tự động (tuỳ chọn):** khai `email` của từng nhân viên trong `config/sources.yaml` và đặt `staff_reminders.enabled: true` trong `config/recipients.yaml`. Khi chạy `live` mà kỳ báo cáo thiếu số liệu của ai (thiếu file, file rỗng, chưa có dòng nào trong kỳ), agent gửi **email nhắc riêng người đó** kèm link Sheet, cc người phụ trách; nhóm không nhận gì.
+
 ### Google Sheet: mỗi nhân viên một Sheet + một Sheet tổng hợp
 
 - **Đầu vào:** gửi cho agent link Google Sheet của từng nhân viên (mỗi Sheet = một người). Link **cố định** — agent lưu vào `config/sources.yaml` (`gsheet.spreadsheet_id`), lần sau không hỏi lại; chỉ cần nhân viên cập nhật nội dung Sheet. Sheet nhiều tab: mặc định đọc mọi tab có bảng; chỉ muốn tab nào thì khai `sheets: ["Doanh số"]`. Cấu trúc cột mỗi Sheet có thể khác nhau.

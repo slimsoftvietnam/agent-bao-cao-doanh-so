@@ -140,6 +140,23 @@ def cron_for(freq: str, weekday: str, time: str, tz: str, days: list[str]) -> di
     return {"local": cron(hh, mm, [WEEKDAYS.index(d) for d in sel]), "utc": cron(mins // 60, mins % 60, idx)}
 
 
+def readiness(sources: list[dict]) -> dict:
+    """Nguồn nào chạy được khi tắt máy (Google Sheet / file trên Drive) và nguồn nào chỉ có trên máy."""
+    cloud, local_only = [], []
+    for e in sources:
+        d = e.get("drive") or {}
+        (cloud if e.get("type") == "gsheet" or d.get("file_id") or d.get("folder_id") else local_only).append(e["owner"])
+    if not local_only:
+        msg = (f"Cả {len(cloud)} nguồn là Google Sheet/Drive → lịch chạy được trên đám mây, KHÔNG cần mở máy. "
+               "Đến giờ hẹn agent tự vào từng Google Sheet/file xem số liệu từng nhân viên, tạo báo cáo và gửi email. "
+               "Nhờ nhân viên cập nhật số liệu thẳng vào Sheet/file đó trước giờ hẹn.")
+    else:
+        msg = (f"Các nguồn chỉ có trên máy: {', '.join(local_only)}. Để lịch tự chạy khi tắt máy, hãy đưa các file Excel này lên Google Drive "
+               "(hoặc chuyển sang Google Sheets) rồi gửi link, và NHẮC nhân viên cập nhật số liệu vào đúng file/Sheet đó trước giờ hẹn. "
+               "Nếu file chỉ nằm trên máy, lịch đám mây không đọc được: báo thiếu file và chỉ gửi cảnh báo cho người phụ trách.")
+    return {"cloud_ready": not local_only, "cloud_sources": cloud, "local_only_sources": local_only, "message": msg}
+
+
 def cmd_write_config(a) -> int:
     ans = json.loads(Path(a.answers).read_text(encoding="utf-8"))
     src_cfg = load_yaml("sources.yaml")
@@ -180,10 +197,13 @@ def cmd_write_config(a) -> int:
         if s.get("local_path"):
             entry["local_path"] = s["local_path"]
         entry["allow_empty_day"] = bool(s.get("allow_empty_day", False))
+        if s.get("email"):
+            entry["email"] = s["email"]   # email nhân viên: nhận nhắc cập nhật số liệu khi bật staff_reminders
         sources.append(entry)
     src_cfg["sources"] = sources
     dump_yaml("sources.yaml", src_cfg, "# Tạo bởi scripts/onboard.py — sửa tay thoải mái. Giải thích các trường: docs/HUONG-DAN-SU-DUNG.md\n")
 
+    ready = readiness(sources)
     team = [x for x in ans["report_email"]]
     owner_email = ans.get("owner_email") or team[0]
     rec = {
@@ -195,6 +215,7 @@ def cmd_write_config(a) -> int:
                        "sheet_name": "ZaloQueue"},
         "summary_sheet": {"enabled": bool(ans.get("summary_sheet_url")), "spreadsheet_id": drive_id(ans.get("summary_sheet_url", ""))[1],
                           "url": (ans.get("summary_sheet_url") or "").split("#")[0]},
+        "staff_reminders": {"enabled": bool(ans.get("remind_staff", False))},
         "audit_log": {"enabled": bool(ans.get("audit_sheet_url")), "spreadsheet_id": drive_id(ans.get("audit_sheet_url", ""))[1],
                       "sheet_name": "Reports"},
     }
@@ -204,17 +225,17 @@ def cmd_write_config(a) -> int:
     period = "báo cáo tuần trước (Thứ Hai–Chủ Nhật)" if freq == "weekly" else "báo cáo ngày làm việc trước đó"
     human = (f"Mỗi {WEEKDAYS_VI[WEEKDAYS.index(weekday)]} lúc {when}" if freq == "weekly"
              else "Mỗi ngày " + ", ".join(WEEKDAYS_VI[WEEKDAYS.index(d)] for d in days) + f" lúc {when}") + f" ({tz}) → {period}"
-    sched = {"frequency": freq, "weekday": weekday if freq == "weekly" else None, "days": days if freq == "daily" else None,
+    sched = {"readiness": ready, "frequency": freq, "weekday": weekday if freq == "weekly" else None, "days": days if freq == "daily" else None,
              "time": when, "timezone": tz, "cron_local": cron["local"], "cron_utc": cron["utc"], "description": human,
              "routine_prompt": ("Làm theo SKILL.md ở thư mục gốc repo, chế độ chạy theo lịch: mode=live, "
-                                f"frequency={freq}. Lấy file nguồn từ Google Drive/Sheets theo config/sources.yaml, chạy scripts/run_report.py, "
+                                f"frequency={freq}. Tự vào từng Google Sheet / file Excel trên Drive theo config/sources.yaml để đọc số liệu của từng nhân viên, chạy scripts/run_report.py, "
                                 "gửi email (kèm file HTML + Excel) và Zalo theo result.json; nếu Zalo không gửi được thì ghi vào hàng đợi Zalo "
                                 "và bỏ qua; nếu dữ liệu bất thường chỉ gửi cảnh báo riêng cho người phụ trách.")}
     dump_yaml("schedule.yaml", sched, "# Lịch chạy. cron_utc dùng khi nhập cron kiểu UTC cho routine đám mây.\n")
     (CONFIG / ".configured").write_text(json.dumps({"at": dt.datetime.now().isoformat(timespec="seconds"), "frequency": freq,
                                                     "sources": len(sources)}, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({"written": ["sources.yaml", "recipients.yaml", "schedule.yaml"], "sources": [s["id"] for s in sources],
-                      "schedule": human, "cron_utc": cron["utc"]}, ensure_ascii=False, indent=2))
+                      "schedule": human, "cron_utc": cron["utc"], "readiness": ready}, ensure_ascii=False, indent=2))
     return 0
 
 

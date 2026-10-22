@@ -271,6 +271,54 @@ with tempfile.TemporaryDirectory() as t:
           and all(x["type"] == "gsheet" for x in src))
     check("onboard: link Sheet tổng hợp cố định lưu vào config", rec["summary_sheet"]["spreadsheet_id"] == "SUMMARY123" and rec["summary_sheet"]["enabled"])
 
+# --- Sheet -> chạy tự động hoàn toàn; Excel trên máy -> nhắc; nhắc nhân viên thiếu số liệu
+with tempfile.TemporaryDirectory() as t:
+    cfgdir = Path(t) / "config"
+    shutil.copytree(CONFIG, cfgdir)
+    env = dict(os.environ, BCDS_CONFIG_DIR=str(cfgdir), PYTHONIOENCODING="utf-8")
+
+    def write_cfg(ans):
+        (Path(t) / "a.json").write_text(_json.dumps(ans, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([sys.executable, str(HERE / "onboard.py"), "write-config", str(Path(t) / "a.json")],
+                           env=env, capture_output=True, text=True, encoding="utf-8")
+        return _json.loads(r.stdout)["readiness"]
+
+    base = {"report_email": ["a@congty.vn"], "frequency": "weekly"}
+    r1 = write_cfg(dict(base, sources=[{"owner": "An", "sheet_url": "https://docs.google.com/spreadsheets/d/AAA/edit"},
+                                       {"owner": "Binh", "drive_url": "https://drive.google.com/file/d/BBB/view"}]))
+    check("readiness: toàn Google Sheet/Drive -> chạy đám mây, không cần mở máy", r1["cloud_ready"] and not r1["local_only_sources"]
+          and "KHÔNG cần mở máy" in r1["message"])
+    r2 = write_cfg(dict(base, sources=[{"owner": "An", "sheet_url": "https://docs.google.com/spreadsheets/d/AAA/edit"},
+                                       {"owner": "Chi", "local_path": "C:/du-lieu/chi.xlsx"}]))
+    check("readiness: Excel chỉ trên máy -> nhắc đưa lên Drive và cập nhật số liệu",
+          not r2["cloud_ready"] and r2["local_only_sources"] == ["Chi"] and "cập nhật số liệu" in r2["message"] and "Google Drive" in r2["message"])
+
+    cfg2 = Path(t) / "cfg2"
+    shutil.copytree(CONFIG, cfg2)
+    rec = cfg2 / "recipients.yaml"
+    rec.write_text(rec.read_text(encoding="utf-8").replace("example.com", "congty.vn"), encoding="utf-8")
+    srcs = _yaml.safe_load((cfg2 / "sources.yaml").read_text(encoding="utf-8"))
+    for x in srcs["sources"]:
+        if x["id"] == "dung":
+            x["email"] = "dung@congty.vn"
+    (cfg2 / "sources.yaml").write_text(_yaml.safe_dump(srcs, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    build(Path(t) / "gap", "empty_day")     # Dũng chưa có dòng nào cho ngày báo cáo
+    build(Path(t) / "okd", "ok")
+    r0 = run(Path(t) / "gap", Path(t) / "o0", cfg2, "live", RD, NOW)
+    check("nhắc nhân viên: mặc định tắt -> không gửi", not any(a["kind"] == "reminder" for a in r0["actions"]))
+    rec.write_text(rec.read_text(encoding="utf-8") + "\nstaff_reminders:\n  enabled: true\n", encoding="utf-8")
+    r3 = run(Path(t) / "gap", Path(t) / "o3", cfg2, "live", RD, NOW)
+    rem = [a for a in r3["actions"] if a["kind"] == "reminder"]
+    team = {"giam.doc@congty.vn", "truong.phong.kinh.doanh@congty.vn", "ke.toan@congty.vn"}
+    check("nhắc nhân viên: gửi đúng Dũng, cc người phụ trách, không chạm nhóm",
+          len(rem) == 1 and rem[0]["to"] == ["dung@congty.vn"] and rem[0]["cc"] == ["nguoi.phu.trach@congty.vn"] and rem[0]["send"]
+          and not (team & set(rem[0]["to"] + rem[0]["cc"])) and r3["status"] == "anomaly" and not r3["send_team_report"])
+    check("nhắc nhân viên: thư có tên người, kỳ báo cáo", "Phạm Quốc Dũng" in Path(rem[0]["body_html_file"]).read_text(encoding="utf-8"))
+    r4 = run(Path(t) / "gap", Path(t) / "o4", cfg2, "dry-run", RD, NOW)
+    check("nhắc nhân viên: dry-run không gửi", all(not a["send"] for a in r4["actions"]))
+    r5 = run(Path(t) / "okd", Path(t) / "o5", cfg2, "live", RD, NOW)
+    check("nhắc nhân viên: dữ liệu đủ -> không nhắc", not any(a["kind"] == "reminder" for a in r5["actions"]))
+
 # --- test mode: chỉ người phụ trách; live bị chặn khi còn email mẫu
 test = scenario("ok", "test")
 check("test: chỉ gửi người phụ trách", all(a["to"] == ["nguoi.phu.trach@example.com"] for a in test["actions"] if a["channel"] == "gmail"))

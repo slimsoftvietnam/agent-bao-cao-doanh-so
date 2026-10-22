@@ -28,6 +28,11 @@ audit_log:
   spreadsheet_id: "DAN_SPREADSHEET_ID_NHAT_KY"
   sheet_name: "Reports"      # cột: thời điểm | ngày báo cáo | chế độ | trạng thái | DT ngày | DT lũy kế | số lỗi nặng | số lưu ý | hành động
 
+# Nhắc nhân viên cập nhật số liệu: khi kỳ báo cáo thiếu dữ liệu của một người (thiếu file / file rỗng / chưa có dòng nào trong kỳ),
+# gửi email nhắc riêng người đó (cần khai `email` trong sources.yaml), cc người phụ trách. Không bao giờ gửi nhóm. Chỉ gửi khi chạy live.
+staff_reminders:
+  enabled: false
+
 # Google Sheet TỔNG HỢP kết quả (1 file cố định, link không đổi). Mỗi kỳ: ghi đè tab Tổng quan / Theo người / Sản phẩm / Theo ngày,
 # nối thêm 1 dòng vào tab Lịch sử. Chỉ ghi khi chạy live và dữ liệu hợp lệ.
 summary_sheet:

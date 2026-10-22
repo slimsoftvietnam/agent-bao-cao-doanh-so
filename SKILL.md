@@ -46,7 +46,11 @@ Hỏi người dùng (AskUserQuestion trong Claude Code; hỏi thẳng trong cha
 1. **Dữ liệu doanh số của từng người** — đường dẫn file Excel/CSV trên máy, link file Google Drive, hoặc **link Google Sheet (mỗi Google Sheet = một nhân viên)**. Link Sheet là **cố định**: lưu vào config, từ lần sau không hỏi lại. Cho phép cấu trúc khác nhau; Sheet nhiều tab thì mặc định đọc mọi tab có bảng (muốn giới hạn: `sheets: [tên tab]` trong nguồn).
    - Chạy `python scripts/onboard.py inspect <file hoặc thư mục>…` rồi **trình bày bảng**: file → cấu trúc nhận diện (cột nào là ngày/sản phẩm/số lượng/đơn giá/thành tiền), số dòng, khoảng ngày, tên người đề xuất. Cho người dùng xác nhận/sửa **tên người bán**; file lỗi (`ok:false`) thì nêu lý do và hỏi lại.
    - Hỏi (không bắt buộc) **mục tiêu doanh số tháng** của từng người.
-   - **Lưu ý đặt lịch không cần mở máy:** file phải nằm trên Google Drive/Sheets (GitHub Actions/`fetch_sources.py` chỉ tải được link chia sẻ *Bất kỳ ai có đường liên kết*; file riêng tư cần connector Drive của Claude Code). Nếu người dùng chỉ có file trên máy: dùng cho lần chạy thử ngay, và hướng dẫn tải lên Drive rồi gửi link để lịch tự động đọc được (hoặc chọn chạy lịch trên máy).
+   - **Quy tắc chạy tự động không cần mở máy (nói rõ với người dùng):**
+     - **Có link Google Sheet** (hoặc file trên Drive) → **chạy tự động hoàn toàn theo lịch**: đến giờ hẹn, agent trên đám mây tự vào từng Google Sheet xem số liệu từng nhân viên, tạo báo cáo và gửi email — người dùng không cần mở máy. Việc của nhân viên chỉ là cập nhật số liệu vào Sheet trước giờ hẹn. (Claude Code đọc Sheet riêng tư qua connector Drive/Sheets; Codex/GitHub Actions cần Sheet chia sẻ *Bất kỳ ai có đường liên kết* hoặc tài khoản dịch vụ.)
+     - **Chỉ có file Excel trên máy** → **nhắc người dùng**: lịch đám mây không đọc được file nằm trên máy. Đề nghị (a) đưa file lên Google Drive hoặc chuyển sang Google Sheets rồi gửi link — khuyến nghị — và (b) **cập nhật số liệu vào đúng file/Sheet đó mỗi kỳ** trước giờ hẹn; hoặc chấp nhận chỉ chạy khi máy bật. File Excel đang dùng chỉ để chạy thử ngay.
+     - Sau `write-config`, đọc nguyên văn `readiness.message` cho người dùng.
+   - Hỏi thêm (không bắt buộc): **email từng nhân viên** (`email` trong nguồn) và có muốn **tự gửi email nhắc nhân viên cập nhật số liệu** khi kỳ báo cáo thiếu dữ liệu của họ không (`remind_staff: true`; chỉ nhắc nhân viên thiếu số liệu, cc người phụ trách, không bao giờ gửi nhóm).
 2. **Google Sheet tổng hợp kết quả** — một Sheet cố định để agent ghi kết quả mỗi kỳ (tab Tổng quan, Theo người, Sản phẩm, Theo ngày ghi đè; tab Lịch sử nối thêm mỗi kỳ). Người dùng gửi link một Sheet trống đã chia sẻ quyền Biên tập (hoặc agent tạo bằng connector nếu hỗ trợ). Link này được đưa vào email, Zalo và báo cáo HTML. Có thể bỏ qua.
 3. **Email**: (a) email nhận báo cáo (một hoặc nhiều), (b) cc nếu có, (c) email người phụ trách nhận cảnh báo dữ liệu (mặc định = email đầu tiên).
 4. **Nhóm Zalo** nhận báo cáo — tên chính xác nhóm (có thể bỏ qua). Hỏi thêm tên hội thoại cá nhân của người phụ trách nếu muốn nhận cảnh báo qua Zalo.
@@ -60,7 +64,7 @@ Ghi `answers.json` (mẫu: `references/answers.example.json`) rồi chạy
 ```bash
 python scripts/onboard.py write-config answers.json
 ```
-Lệnh ghi `config/sources.yaml`, `config/recipients.yaml`, `config/schedule.yaml` (có `cron_utc` và `routine_prompt`). Đọc lại tóm tắt cho người dùng xác nhận.
+Lệnh ghi `config/sources.yaml`, `config/recipients.yaml`, `config/schedule.yaml` (có `cron_utc`, `routine_prompt`, `readiness`) và in `readiness` (nguồn nào chạy được khi tắt máy, nguồn nào chỉ có trên máy). Đọc lại tóm tắt và `readiness.message` cho người dùng xác nhận; nếu `cloud_ready: false` thì nhắc cụ thể từng người còn dùng file trên máy.
 
 ### A3. Kết nối dịch vụ
 Nếu host có connector/MCP **Gmail, Google Drive, Google Sheets** (Claude Code: *claude.ai → Settings → Connectors*) thì kiểm tra đã bật; nếu không có (thường gặp ở Codex) dùng SMTP + link công khai như bảng trên. Zalo: mở `chat.zalo.me` bằng trình duyệt trong app, người dùng quét QR một lần.
@@ -107,7 +111,7 @@ python scripts/run_report.py --inbox inbox --mode <dry-run|test|live>
 ### 3. Gửi Gmail (mọi `actions` có `channel: gmail`, `send: true`)
 - Có `smtp_available: true` (đã có `GMAIL_USER`/`GMAIL_APP_PASSWORD`; luôn dùng được với Codex) → `python scripts/send_mail.py out/<ngày>/result.json` (gửi nguyên văn `email.html`, **đính kèm báo cáo tương tác `.html` và Excel tổng hợp**).
 - Ngược lại, nếu host có connector Gmail → `send_message` với `body_compact_file` (`email_compact.html`, đọc nguyên văn) làm `htmlBody`; **nói rõ với người dùng rằng file đính kèm chưa gửi được** và gợi ý bật SMTP (A3).
-- Dùng đúng `to`, `cc`, `subject`. Cảnh báo (`kind: alert`) → `alert.html`.
+- Dùng đúng `to`, `cc`, `subject`. Cảnh báo (`kind: alert`) → `alert.html`. Nhắc nhân viên (`kind: reminder`, chỉ khi `staff_reminders.enabled`) → `reminder_<id>.html` tới đúng nhân viên thiếu số liệu, cc người phụ trách.
 
 ### 4. Gửi Zalo (action `channel: zalo`, `send: true`)
 Trình duyệt trong app: mở `https://chat.zalo.me`. Gặp QR/đăng nhập, không có trình duyệt, hoặc lỗi bất kỳ → **bỏ qua Zalo, không báo lỗi toàn bộ**, chuyển sang "Hàng đợi Zalo". Nếu vào được: tìm đúng hội thoại `target`, **xác nhận tiêu đề trước khi gõ**, nhập nội dung `text_file` (gõ từng dòng với Shift+Enter, rồi **đối chiếu lại từng dòng** — từng có trường hợp rơi dòng; thiếu thì gửi bù), gửi, xác nhận tin hiện "Đã gửi".

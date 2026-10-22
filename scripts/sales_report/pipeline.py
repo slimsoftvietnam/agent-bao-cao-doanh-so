@@ -154,6 +154,23 @@ def run(inbox: str | Path, out_dir: str | Path, config_dir: str | Path, mode: st
         # Ghi bảng tổng hợp vào Google Sheet cố định: chỉ khi live và dữ liệu hợp lệ (bất thường -> không cập nhật)
         actions.append({"channel": "sheet", "kind": "summary", "spreadsheet_id": cfg["recipients"]["summary_sheet"]["spreadsheet_id"],
                         "url": m["summary_sheet_url"], "file": p("sheet_update.json"), "send": mode == "live"})
+    rem = cfg["recipients"].get("staff_reminders") or {}
+    if status == "anomaly" and rem.get("enabled"):
+        # Nhắc đúng nhân viên thiếu số liệu (nếu có email trong sources.yaml); luôn cc người phụ trách, không bao giờ gửi nhóm
+        src_by_id = {s["id"]: s for s in cfg["sources"]["sources"]}
+        owner_cfg = cfg["recipients"]["owner"]
+        need = sorted({i.source_id for i in issues if i.severity == "critical"
+                       and i.code in ("missing_file", "empty_file", "no_data_for_date") and i.source_id in src_by_id})
+        for sid in need:
+            s = src_by_id[sid]
+            if not s.get("email"):
+                continue
+            where = (s.get("gsheet") or {}).get("url") or (s.get("drive") or {}).get("name_contains") or s["owner"]
+            (out / f"reminder_{sid}.html").write_text(render.reminder_html(s["owner"], title, str(where), brand,
+                                                                           owner_cfg.get("name", "người phụ trách")), encoding="utf-8")
+            actions.append({"channel": "gmail", "kind": "reminder", "to": [s["email"]], "cc": [owner_cfg["email"]],
+                            "subject": f"[Nhắc cập nhật] Số liệu doanh số {title}", "body_html_file": p(f"reminder_{sid}.html"),
+                            "attachments": [], "send": mode == "live", "source_id": sid})
     result = {
         "kind": kind, "period_title": title, "smtp_available": bool(os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD")),
         "report_date": rd.isoformat(), "generated_at": now.isoformat(timespec="seconds"), "mode": mode,
