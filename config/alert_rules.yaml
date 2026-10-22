@@ -1,0 +1,36 @@
+# ============================================================
+# QUY TẮC CẢNH BÁO
+# severity:
+#   critical = chặn báo cáo, CHỈ gửi cảnh báo riêng cho người phụ trách
+#   warning  = vẫn gửi báo cáo, kèm ghi chú chất lượng dữ liệu ở cuối
+# enabled: false để tắt một quy tắc.
+# ============================================================
+
+rules:
+  missing_file:        {enabled: true, severity: critical}   # nguồn không có file nào trong thư mục
+  duplicate_file:      {enabled: true, severity: critical}   # file trùng byte, trùng nội dung, hoặc >1 file cho 1 nguồn
+  empty_file:          {enabled: true, severity: critical}   # có file nhưng không có dòng giao dịch nào
+  wrong_structure:                                           # không đọc được / thiếu cột bắt buộc
+    enabled: true
+    severity: critical
+    required_fields: [date, product]                         # ngoài ra luôn cần: revenue HOẶC (quantity + unit_price)
+  no_data_for_date:    {enabled: true, severity: critical}   # người này không có dòng nào cho ngày báo cáo
+  missing_values:                                            # ô trống / không đọc được
+    enabled: true
+    severity: critical        # áp dụng khi tỷ lệ lỗi vượt max_ratio; dưới ngưỡng chỉ là "warning"
+    max_ratio: 0.10
+  revenue_deviation:                                         # doanh thu ngày lệch so với mốc
+    enabled: true
+    severity: critical
+    threshold_pct: 50                                        # |lệch| > 50% là bất thường
+    scope: [total, seller]                                   # kiểm tra tổng và/hoặc từng người
+    baseline_method: same_weekday_avg                        # same_weekday_avg | last_week_same_day
+    baseline_weeks: 4                                        # số tuần cùng thứ dùng làm mốc
+    fallback_days: 7                                         # thiếu lịch sử cùng thứ -> TB N ngày gần nhất
+    min_history_points: 3                                    # tối thiểu số điểm để dùng mốc dự phòng
+    min_baseline_revenue: 0
+  revenue_mismatch:    {enabled: true, severity: warning}    # Thành tiền ≠ SL × Đơn giá (dung sai 1%)
+  negative_values:     {enabled: true, severity: warning}
+  duplicate_rows:      {enabled: true, severity: warning}    # dòng trùng hệt trong ngày báo cáo
+  future_dates:        {enabled: true, severity: warning}    # dòng có ngày sau ngày báo cáo
+  unexpected_file:     {enabled: true, severity: warning}    # file trong thư mục không thuộc nguồn nào

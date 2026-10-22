@@ -1,0 +1,29 @@
+# ============================================================
+# NGƯỜI NHẬN
+# - owner: người phụ trách. LUÔN là người duy nhất nhận cảnh báo khi dữ liệu bất thường.
+# - team : nhóm nhận báo cáo thật (chỉ khi dữ liệu hợp lệ VÀ chạy chế độ live).
+# Địa chỉ @example.com là địa chỉ mẫu: chế độ live sẽ TỪ CHỐI chạy cho tới khi bạn thay bằng email thật.
+# ============================================================
+
+owner:
+  name: "Người phụ trách báo cáo"
+  email: "nguoi.phu.trach@example.com"
+  zalo:
+    target: "Tên Zalo của người phụ trách"   # tên hội thoại cá nhân trên Zalo Web; bỏ trống để không nhắn Zalo cảnh báo
+
+team:
+  to:
+    - "giam.doc@example.com"
+    - "truong.phong.kinh.doanh@example.com"
+  cc:
+    - "ke.toan@example.com"
+  zalo_group: "Nhóm Kinh doanh SlimSoft"      # tên chính xác nhóm Zalo; bỏ trống để không nhắn Zalo
+
+email:
+  subject_prefix: "[Báo cáo doanh số]"
+
+# Nhật ký chạy (tuỳ chọn, học từ repo tham khảo): mỗi lần chạy thêm 1 dòng vào Google Sheet
+audit_log:
+  enabled: false
+  spreadsheet_id: "DAN_SPREADSHEET_ID_NHAT_KY"
+  sheet_name: "Reports"      # cột: thời điểm | ngày báo cáo | chế độ | trạng thái | DT ngày | DT lũy kế | số lỗi nặng | số lưu ý | hành động

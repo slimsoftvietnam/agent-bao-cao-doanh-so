@@ -1,0 +1,105 @@
+# ============================================================
+# NGUỒN DỮ LIỆU + MỤC TIÊU + TỪ ĐỒNG NGHĨA TÊN CỘT
+# Sửa file này khi thêm người bán, đổi thư mục Drive hoặc đổi mục tiêu tháng.
+# ============================================================
+
+general:
+  brand: "SlimSoft Sales"            # hiện ở đầu báo cáo
+  timezone: "Asia/Ho_Chi_Minh"
+  currency: "VND"
+  # previous_day: ngày báo cáo = hôm qua | previous_business_day: lùi tới ngày làm việc gần nhất
+  report_date_rule: previous_business_day
+  business_days: [0, 1, 2, 3, 4, 5]  # 0=Thứ Hai ... 6=Chủ Nhật  (thứ Hai chạy -> báo cáo thứ Bảy)
+  top_products:
+    count: 3
+    rank_by: revenue                 # revenue (doanh thu) | units (số lượng bán)
+
+targets:
+  # Bỏ trống để tự cộng mục tiêu từng người.
+  total_monthly: null
+
+# Mỗi nguồn = 1 người bán / 1 file. Thêm nguồn mới bằng cách nhân bản một khối.
+sources:
+  - id: an
+    owner: "Nguyễn Văn An"           # tên hiển thị; cũng là tên người bán nếu file không có cột người bán
+    monthly_target: 120000000
+    type: file                       # file = file Excel/CSV trên Drive | gsheet = Google Sheet (agent xuất ra CSV)
+    drive:
+      folder_id: "DAN_FOLDER_ID_DRIVE_CUA_AN"   # thay bằng ID thư mục Drive thật (đoạn cuối URL thư mục)
+      name_contains: "Doanh_so_An"
+    file_patterns: ["Doanh_so_An*"]  # mẫu tên file trong inbox (không phân biệt hoa/thường, dấu, khoảng trắng)
+    allow_empty_day: false           # true nếu người này được phép không có doanh số trong ngày
+
+  - id: binh
+    owner: "Trần Thị Bình"
+    monthly_target: 145000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_BINH", name_contains: "Sales_Binh"}
+    file_patterns: ["Sales_Binh*"]
+
+  - id: chi
+    owner: "Lê Minh Chi"
+    monthly_target: 150000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_CHI", name_contains: "DoanhSo_Chi"}
+    file_patterns: ["DoanhSo_Chi*"]
+
+  - id: dung
+    owner: "Phạm Quốc Dũng"
+    monthly_target: 150000000
+    type: file                       # ví dụ nguồn Google Sheet:  type: gsheet + gsheet: {spreadsheet_id: "...", sheet_name: "Chi tiết"}
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_DUNG", name_contains: "BaoCao_Dung"}
+    file_patterns: ["BaoCao_Dung*"]
+
+  - id: hoa
+    owner: "Võ Thị Hoa"
+    monthly_target: 125000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_HOA", name_contains: "Doanh_so_Hoa"}
+    file_patterns: ["Doanh_so_Hoa*"]
+
+  - id: khoa
+    owner: "Đặng Anh Khoa"
+    monthly_target: 135000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_KHOA", name_contains: "Sales_Khoa"}
+    file_patterns: ["Sales_Khoa*"]
+
+  - id: lan
+    owner: "Bùi Ngọc Lan"
+    monthly_target: 130000000
+    type: file                       # file CSV cũng được
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_LAN", name_contains: "DoanhSo_Lan"}
+    file_patterns: ["DoanhSo_Lan*"]
+
+  - id: minh
+    owner: "Hoàng Đức Minh"
+    monthly_target: 165000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_MINH", name_contains: "BaoCao_Minh"}
+    file_patterns: ["BaoCao_Minh*"]
+
+  - id: nga
+    owner: "Đỗ Thu Nga"
+    monthly_target: 140000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_NGA", name_contains: "Nga_DoanhSo"}
+    file_patterns: ["Nga_DoanhSo*"]
+
+  - id: phuc
+    owner: "Lý Hoàng Phúc"
+    monthly_target: 120000000
+    type: file
+    drive: {folder_id: "DAN_FOLDER_ID_DRIVE_CUA_PHUC", name_contains: "Phuc_Sales"}
+    file_patterns: ["Phuc_Sales*"]
+
+# Trường chuẩn  <-  các tên cột có thể gặp (đã bỏ dấu, không phân biệt hoa/thường).
+# Cột lạ? Chỉ cần thêm tên vào đúng trường; không phải sửa code.
+columns:
+  date:       [ngay, ngay ban, ngay giao dich, ngay thang, thoi gian, date, order date, sale date, day]
+  product:    [san pham, ten san pham, ten hang, mat hang, hang hoa, item, product, product name, description]
+  quantity:   [so luong, sl, qty, quantity, units, so luong ban]
+  unit_price: [don gia, gia ban, gia, unit price, price, gia ban le]
+  revenue:    [thanh tien, doanh thu, doanh so, tong tien, tong, total, amount, revenue]
+  seller:     [nguoi ban, nhan vien, nhan vien ban hang, sales, salesperson, sales rep, seller, ten nhan vien, phu trach]
+  sku:        [ma sp, ma hang, ma san pham, sku, code, stt, no]   # nhận diện nhưng không dùng để tính

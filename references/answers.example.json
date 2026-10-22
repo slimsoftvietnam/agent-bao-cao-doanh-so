@@ -1,0 +1,19 @@
+{
+  "brand": "Công ty ABC",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "frequency": "weekly",
+  "weekday": "monday",
+  "time": "08:00",
+  "report_email": ["giam.doc@congty.vn", "truong.phong@congty.vn"],
+  "cc": ["ke.toan@congty.vn"],
+  "owner_email": "nguoi.phu.trach@congty.vn",
+  "owner_name": "Nguyễn Văn A",
+  "zalo_group": "Nhóm Kinh doanh ABC",
+  "zalo_owner": "",
+  "zalo_queue_sheet_url": "https://docs.google.com/spreadsheets/d/XXXXXXXX/edit",
+  "audit_sheet_url": "",
+  "sources": [
+    {"owner": "Nguyễn Văn An", "local_path": "C:/du-lieu/Doanh_so_An_T10.xlsx", "drive_url": "https://drive.google.com/drive/folders/XXXXXXXX", "monthly_target": 120000000},
+    {"owner": "Trần Thị Bình", "drive_url": "https://docs.google.com/spreadsheets/d/YYYYYYYY/edit", "sheet_name": "Chi tiết", "monthly_target": 145000000}
+  ]
+}
