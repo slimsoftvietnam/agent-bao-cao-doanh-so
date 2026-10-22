@@ -4,14 +4,19 @@
   python scripts/fetch_sources.py --out inbox            # tải theo config/sources.yaml
   python scripts/fetch_sources.py --out inbox --check    # chỉ in URL sẽ tải
 
-Hỗ trợ: drive.file_id (file Excel/CSV), gsheet.spreadsheet_id (+ sheet_name -> xuất CSV).
-Không hỗ trợ: folder_id (cần API/connector để liệt kê) và file riêng tư — dùng connector Google Drive của agent.
+Mỗi Google Sheet = 1 nhân viên; link cố định trong config. Tải cả workbook dạng .xlsx (mọi tab; loader tự chọn tab có bảng,
+giới hạn tab bằng `sheets: [tên]` trong nguồn). Có `gsheet.sheet_name` -> chỉ tab đó (CSV); có `gsheet.gid` -> chỉ tab đó.
+Cách truy cập (ưu tiên từ trên xuống):
+  1. Biến GOOGLE_SERVICE_ACCOUNT_JSON (tài khoản dịch vụ, Sheet/file đã chia sẻ cho email của nó) -> đọc được file RIÊNG TƯ.
+  2. Link chia sẻ "Bất kỳ ai có đường liên kết".
+Không hỗ trợ: folder_id (cần API/connector để liệt kê) — dùng connector Google Drive của agent hoặc khai file_id từng file.
 Nguồn có local_path tồn tại thì chép file cục bộ.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -32,7 +37,9 @@ def source_url(s: dict) -> tuple[str, str] | None:
         base = f"https://docs.google.com/spreadsheets/d/{g['spreadsheet_id']}"
         if g.get("sheet_name"):
             return f"{base}/gviz/tq?tqx=out:csv&sheet={urllib.parse.quote(g['sheet_name'])}", f"{s['id']}.csv"
-        return f"{base}/export?format=csv", f"{s['id']}.csv"
+        if g.get("gid") not in (None, ""):
+            return f"{base}/export?format=csv&gid={g['gid']}", f"{s['id']}.csv"
+        return f"{base}/export?format=xlsx", f"{s['id']}.xlsx"
     fid = (s.get("drive") or {}).get("file_id")
     if fid:
         return f"https://drive.google.com/uc?export=download&id={fid}", ""
@@ -57,6 +64,41 @@ def download(url: str, out: Path, hint: str) -> Path:
     return path
 
 
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def sa_session():
+    """Phiên có quyền của tài khoản dịch vụ, hoặc None nếu không cấu hình / thiếu thư viện."""
+    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not raw:
+        return None
+    try:
+        from google.auth.transport.requests import AuthorizedSession
+        from google.oauth2 import service_account
+    except ImportError:
+        return None
+    return AuthorizedSession(service_account.Credentials.from_service_account_info(
+        json.loads(raw), scopes=["https://www.googleapis.com/auth/drive.readonly"]))
+
+
+def download_sa(sess, s: dict, out: Path) -> Path:
+    """Đọc file/Sheet riêng tư qua Drive API: Sheet -> xuất xlsx (mọi tab); file Excel/CSV -> tải nguyên bản."""
+    if s.get("type") == "gsheet":
+        fid = s["gsheet"]["spreadsheet_id"]
+        r = sess.get(f"https://www.googleapis.com/drive/v3/files/{fid}/export", params={"mimeType": XLSX})
+        name = f"{s['id']}.xlsx"
+    else:
+        fid = s["drive"]["file_id"]
+        meta = sess.get(f"https://www.googleapis.com/drive/v3/files/{fid}", params={"fields": "name"})
+        meta.raise_for_status()
+        name = meta.json()["name"]
+        r = sess.get(f"https://www.googleapis.com/drive/v3/files/{fid}", params={"alt": "media"})
+    r.raise_for_status()
+    path = out / re.sub(r'[\\/:*?"<>|]', "_", name)
+    path.write_bytes(r.content)
+    return path
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -68,6 +110,7 @@ def main() -> int:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     report = {"downloaded": [], "copied": [], "skipped": [], "failed": []}
+    sess = None if a.check else sa_session()
     for s in sources:
         lp = s.get("local_path")
         if lp and Path(lp).exists() and not a.check:
@@ -82,7 +125,10 @@ def main() -> int:
             report["downloaded"].append({"id": s["id"], "url": u[0]})
             continue
         try:
-            report["downloaded"].append({"id": s["id"], "file": download(u[0], out, u[1]).name})
+            if sess is not None:
+                report["downloaded"].append({"id": s["id"], "file": download_sa(sess, s, out).name, "via": "service-account"})
+                continue
+            report["downloaded"].append({"id": s["id"], "file": download(u[0], out, u[1]).name, "via": "public-link"})
         except Exception as e:  # noqa: BLE001 — báo từng nguồn, không dừng cả lượt
             report["failed"].append({"id": s["id"], "error": str(e)[:200]})
     print(json.dumps(report, ensure_ascii=False, indent=2))

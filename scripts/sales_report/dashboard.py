@@ -34,7 +34,7 @@ def embed_data(df: pd.DataFrame, m: dict, cfg: dict, issues: list, n_files: int,
             for r in d.itertuples()]
     return {
         "brand": cfg["sources"].get("general", {}).get("brand", "Báo cáo doanh số"),
-        "reportDate": rd.isoformat(), "kind": m["kind"], "periodTitle": m["period_title"], "weekday": m["weekday"], "month": m["month"], "pace": m["pace_pct"],
+        "sheetUrl": m.get("summary_sheet_url", ""), "reportDate": rd.isoformat(), "kind": m["kind"], "periodTitle": m["period_title"], "weekday": m["weekday"], "month": m["month"], "pace": m["pace_pct"],
         "totalTarget": m["total_target"], "daysInMonth": m["days_in_month"], "generated": generated, "files": n_files,
         "sellers": [{"name": n, "target": targets.get(n)} for n in sellers],
         "products": products, "dates": dates, "rows": rows,

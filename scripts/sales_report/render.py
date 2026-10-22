@@ -209,9 +209,11 @@ border-radius:22px;padding:26px 28px 24px;color:#ffffff;">
                 'border-radius:8px;font-size:12px;color:#78350f;"><b>Ghi chú chất lượng dữ liệu</b><ul style="margin:6px 0 0 18px;padding:0;">'
                 + "".join(f"<li>{e(i.title)}</li>" for i in warns) + "</ul></div></td></tr>")
 
+    sheet = (f' &nbsp;·&nbsp; 📊 <a href="{e(m["summary_sheet_url"])}" style="color:#3949ab;font-weight:700;">Mở bảng tổng hợp Google Sheets</a>'
+             if m.get("summary_sheet_url") else "")
     cta = (f'<tr><td style="padding-top:14px;"><div style="background:#e8eaf6;border:1px solid {LINE};border-radius:16px;padding:14px 18px;'
            f'font-size:13px;color:#334155;">📎 <b>Mở file đính kèm</b> <span style="color:{ORANGE};font-weight:700;">Bao-cao-doanh-so-{rd}.html</span> '
-           f'bằng trình duyệt để <b>lọc theo kỳ doanh thu</b> và <b>bấm vào từng người</b> xem chi tiết sản phẩm, ngày bán, giao dịch.</div></td></tr>')
+           f'bằng trình duyệt để <b>lọc theo kỳ doanh thu</b> và <b>bấm vào từng người</b> xem chi tiết sản phẩm, ngày bán, giao dịch.{sheet}</div></td></tr>')
     html = f"""<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Báo cáo doanh số {m['period_title']}</title></head>
 <body style="margin:0;background:#eceef3;{FONT}color:#1e293b;">
@@ -266,7 +268,7 @@ def zalo_text(m: dict) -> str:
         lines.append("• Top 3: " + "; ".join(f"{i}) {t['name']} {fmt_short(t['revenue'])}"
                                               for i, t in enumerate(m["top_products_day"], 1)))
     lines.append("• Theo người: " + " | ".join(f"{p['name'].split()[-1]} {fmt_short(p['day_revenue'])}" for p in m["people"]))
-    lines.append("Chi tiết xem email “Báo cáo doanh số”.")
+    lines.append("Chi tiết xem email “Báo cáo doanh số”" + (f" hoặc bảng tổng hợp: {m['summary_sheet_url']}" if m.get("summary_sheet_url") else "") + ".")
     return "\n".join(lines)
 
 
@@ -333,6 +335,8 @@ def compact_email_html(m: dict, brand: str, banner_text: str = "") -> str:
         '<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:16px 20px">'
         f'<div style="font-size:16px;font-weight:700;color:#1f1b5c;margin-bottom:8px">Top 3 sản phẩm trong {m["noun"]}</div>'
         f'<table role="presentation" width="100%" cellpadding="7" cellspacing="0" style="font-size:13px">{prods}</table></td></tr>'
-        '<tr><td align="center" style="padding:14px 0 2px;font-size:11px;color:#8a8fa6">Tạo tự động bởi AI Agent báo cáo doanh số · số liệu tính bằng Python từ các file nguồn</td></tr>'
+        '<tr><td align="center" style="padding:14px 0 2px;font-size:11px;color:#8a8fa6">'
+        + (f'<a href="{e(m["summary_sheet_url"])}" style="color:#3949ab;font-weight:700;">Mở bảng tổng hợp Google Sheets</a><br>' if m.get("summary_sheet_url") else "")
+        + 'Tạo tự động bởi AI Agent báo cáo doanh số · số liệu tính bằng Python từ các file nguồn</td></tr>'
         '</table></td></tr></table>')
     return _gmail_safe(html)

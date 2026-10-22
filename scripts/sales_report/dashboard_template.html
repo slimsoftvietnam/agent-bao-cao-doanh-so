@@ -185,6 +185,7 @@ function render(){
  const r=range(),p=prior(r),days=span(r),all=pick(r[0],r[1]),tot=sum(all),pre=sum(pick(p[0],p[1]));
  const mtd=sum(pick(MS,RD)).rev,ach=D.totalTarget?mtd/D.totalTarget*100:null,g=growth(tot.rev,pre.rev),ppl=people();
  $('#title').textContent=D.brand+' · Báo cáo doanh số';$('#sub').textContent=`${D.kind==='week'?'':'Ngày báo cáo '}${D.periodTitle} · tạo lúc ${D.generated}`;
+ if(D.sheetUrl&&!$('#sub a')){const l=document.createElement('a');l.href=D.sheetUrl;l.target='_blank';l.rel='noopener';l.textContent=' · Mở bảng tổng hợp Google Sheets';l.style.cssText='color:var(--blue);font-weight:500';$('#sub').appendChild(l)}
  $$('#presets [data-p=day]').forEach(b=>b.textContent=D.kind==='week'?'Ngày cuối tuần':'Hôm nay');
  $$('#presets [data-p=week]').forEach(b=>b.textContent=D.kind==='week'?'Tuần báo cáo':'Tuần này');
  $$('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.p===S.preset));

@@ -22,9 +22,9 @@ Mọi con số do **Python** tính; Claude chỉ hỏi, lấy file, gửi thư/Z
 
 ## Quy trình agent làm với bạn
 
-1. **Hỏi thông tin đầu vào:** file Excel của từng người (đường dẫn hoặc link Drive/Sheets), email nhận báo cáo, nhóm Zalo, lịch chạy (ví dụ: *hằng tuần sáng thứ Hai 8h* hoặc *hằng ngày 8h T2–T6*).
+1. **Hỏi thông tin đầu vào:** file Excel hoặc **link Google Sheet của từng người** (mỗi Sheet một nhân viên, link cố định), link **Google Sheet tổng hợp** để ghi kết quả, email nhận báo cáo, nhóm Zalo, lịch chạy (ví dụ: *hằng tuần sáng thứ Hai 8h* hoặc *hằng ngày 8h T2–T6*).
 2. **Tự phân tích:** nhận diện cột → gộp file → tính doanh thu kỳ, lũy kế tháng, đạt mục tiêu, so kỳ trước, top 3 sản phẩm, doanh thu từng người → kiểm tra bất thường → tạo báo cáo HTML (phong cách bảng điều khiển, có lọc kỳ và xem chi tiết từng người) + Excel tổng hợp.
-3. **Gửi kết quả:** email cho bạn (kèm HTML + Excel) và nhóm Zalo. Lịch hằng tuần gửi **tuần trước**; hằng ngày gửi **ngày trước**. Chạy tự động được khi tắt máy; nếu Zalo không gửi được trên môi trường tự động thì **bỏ qua Zalo**, xếp vào hàng đợi và **gửi bù khi bạn bật máy**.
+3. **Gửi kết quả:** ghi bảng kết quả vào Google Sheet tổng hợp, email cho bạn (kèm HTML + Excel) và nhóm Zalo. Lịch hằng tuần gửi **tuần trước**; hằng ngày gửi **ngày trước**. Chạy tự động được khi tắt máy; nếu Zalo không gửi được trên môi trường tự động thì **bỏ qua Zalo**, xếp vào hàng đợi và **gửi bù khi bạn bật máy**.
 
 ## Cài đặt
 
@@ -92,7 +92,7 @@ agents/openai.yaml       tên hiển thị + lời nhắc gợi ý cho Codex
 HUONG-DAN-SU-DUNG.md     hướng dẫn người dùng
 config/                  sources.yaml · recipients.yaml · alert_rules.yaml · schedule.yaml (do onboard.py ghi)
 scripts/                 run_report.py · onboard.py · auto_run.py (chạy không cần agent) · fetch_sources.py
-                         send_mail.py · zalo_queue.py · make_sample_data.py · selftest.py · sales_report/
+                         send_mail.py · sheets_sync.py · zalo_queue.py · make_sample_data.py · selftest.py · sales_report/
 references/              phong-cach-bao-cao.md (phong cách giao diện) · answers.example.json
 sample-data/             inbox (ngày) · inbox-weekly (tuần): 10 người, 5 cấu trúc Excel + CSV
 docs/                    bản mẫu báo cáo HTML, email, Excel, ảnh chụp
@@ -100,6 +100,7 @@ docs/                    bản mẫu báo cáo HTML, email, Excel, ảnh chụp
 
 ## Lưu ý
 
+- **Google Sheet:** mỗi Sheet nhân viên được đọc qua link cố định (connector Google Sheets, hoặc tài khoản dịch vụ `GOOGLE_SERVICE_ACCOUNT_JSON` khi dùng Codex/GitHub Actions); kết quả ghi vào Sheet tổng hợp (tab Tổng quan, Theo người, Sản phẩm, Theo ngày, Lịch sử). Xem [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md).
 - Config chứa email của bạn: muốn lịch chạy trên đám mây thì đẩy config lên **repo riêng tư** của bạn (không dùng bản công khai này).
 - Zalo không có API công khai cho nhóm cá nhân nên gửi qua trình duyệt; trên môi trường tự động thường không gửi được (không có Zalo Web đăng nhập) — đó là lý do có hàng đợi Zalo.
 - Muốn đính kèm HTML + Excel trong email tự động, cần mật khẩu ứng dụng Gmail (`GMAIL_USER`, `GMAIL_APP_PASSWORD`); không có thì (Claude Code) thư gửi bản rút gọn qua connector và không đính kèm.

@@ -18,6 +18,7 @@ Skill chỉ cần: chạy lệnh Python, hỏi người dùng, (tuỳ chọn) co
 |---|---|---|
 | Hỏi người dùng | AskUserQuestion | hỏi thẳng trong chat, gom 1–2 lượt |
 | Lấy file nguồn | connector Google Drive/Sheets, hoặc `scripts/fetch_sources.py` | file cục bộ, hoặc link chia sẻ công khai qua `scripts/fetch_sources.py`, hoặc MCP Drive nếu host có |
+| Đọc Google Sheet của nhân viên / ghi Sheet tổng hợp | connector Google Sheets (`get_values`, `update_values`, `append_values`) | `scripts/fetch_sources.py` (đọc) + `scripts/sheets_sync.py` (ghi) bằng tài khoản dịch vụ `GOOGLE_SERVICE_ACCOUNT_JSON`; hoặc MCP Sheets nếu host có |
 | Gửi email (kèm HTML + Excel) | SMTP `scripts/send_mail.py` (ưu tiên), hoặc connector Gmail (bản rút gọn) | SMTP `scripts/send_mail.py` (cần `GMAIL_USER`, `GMAIL_APP_PASSWORD`); hoặc MCP Gmail nếu host có |
 | Zalo | trình duyệt trong app / Claude in Chrome | trình duyệt/computer-use của host; không có → xếp hàng `zalo-queue/pending.jsonl` |
 | Đặt lịch không cần mở máy | routine đám mây (skill `schedule`) **hoặc** GitHub Actions | **GitHub Actions** (`scripts/onboard.py make-workflow`); không cần agent |
@@ -42,13 +43,14 @@ Skill chỉ cần: chạy lệnh Python, hỏi người dùng, (tuỳ chọn) co
 ### A1. Hỏi thông tin đầu vào
 Hỏi người dùng (AskUserQuestion trong Claude Code; hỏi thẳng trong chat với Codex) — gom thành 1–2 lượt, ngôn ngữ đơn giản. Không bịa giá trị thiếu.
 
-1. **File Excel doanh số của từng người** — đường dẫn file/thư mục trên máy *hoặc* link Google Drive / Google Sheets. Có thể một thư mục chứa nhiều file. Cho phép cấu trúc file khác nhau.
+1. **Dữ liệu doanh số của từng người** — đường dẫn file Excel/CSV trên máy, link file Google Drive, hoặc **link Google Sheet (mỗi Google Sheet = một nhân viên)**. Link Sheet là **cố định**: lưu vào config, từ lần sau không hỏi lại. Cho phép cấu trúc khác nhau; Sheet nhiều tab thì mặc định đọc mọi tab có bảng (muốn giới hạn: `sheets: [tên tab]` trong nguồn).
    - Chạy `python scripts/onboard.py inspect <file hoặc thư mục>…` rồi **trình bày bảng**: file → cấu trúc nhận diện (cột nào là ngày/sản phẩm/số lượng/đơn giá/thành tiền), số dòng, khoảng ngày, tên người đề xuất. Cho người dùng xác nhận/sửa **tên người bán**; file lỗi (`ok:false`) thì nêu lý do và hỏi lại.
    - Hỏi (không bắt buộc) **mục tiêu doanh số tháng** của từng người.
    - **Lưu ý đặt lịch không cần mở máy:** file phải nằm trên Google Drive/Sheets (GitHub Actions/`fetch_sources.py` chỉ tải được link chia sẻ *Bất kỳ ai có đường liên kết*; file riêng tư cần connector Drive của Claude Code). Nếu người dùng chỉ có file trên máy: dùng cho lần chạy thử ngay, và hướng dẫn tải lên Drive rồi gửi link để lịch tự động đọc được (hoặc chọn chạy lịch trên máy).
-2. **Email**: (a) email nhận báo cáo (một hoặc nhiều), (b) cc nếu có, (c) email người phụ trách nhận cảnh báo dữ liệu (mặc định = email đầu tiên).
-3. **Nhóm Zalo** nhận báo cáo — tên chính xác nhóm (có thể bỏ qua). Hỏi thêm tên hội thoại cá nhân của người phụ trách nếu muốn nhận cảnh báo qua Zalo.
-4. **Lịch chạy** — đưa lựa chọn có ví dụ:
+2. **Google Sheet tổng hợp kết quả** — một Sheet cố định để agent ghi kết quả mỗi kỳ (tab Tổng quan, Theo người, Sản phẩm, Theo ngày ghi đè; tab Lịch sử nối thêm mỗi kỳ). Người dùng gửi link một Sheet trống đã chia sẻ quyền Biên tập (hoặc agent tạo bằng connector nếu hỗ trợ). Link này được đưa vào email, Zalo và báo cáo HTML. Có thể bỏ qua.
+3. **Email**: (a) email nhận báo cáo (một hoặc nhiều), (b) cc nếu có, (c) email người phụ trách nhận cảnh báo dữ liệu (mặc định = email đầu tiên).
+4. **Nhóm Zalo** nhận báo cáo — tên chính xác nhóm (có thể bỏ qua). Hỏi thêm tên hội thoại cá nhân của người phụ trách nếu muốn nhận cảnh báo qua Zalo.
+5. **Lịch chạy** — đưa lựa chọn có ví dụ:
    - *Hằng tuần, sáng thứ Hai 8:00* → gửi **báo cáo tuần trước** (Thứ Hai–Chủ Nhật vừa qua).
    - *Hằng ngày, 8:00 từ thứ Hai đến thứ Sáu* → gửi **báo cáo ngày hôm trước** (thứ Hai báo cáo thứ Bảy).
    - Khác (ngày/giờ khác) → ghi `weekday`/`days`/`time`. Múi giờ mặc định Asia/Ho_Chi_Minh.
@@ -91,7 +93,7 @@ Chế độ: `dry-run` (mặc định khi người dùng tự yêu cầu) | `tes
 Với mỗi nguồn trong `config/sources.yaml`:
 - Không có connector/muốn không dùng agent: `python scripts/fetch_sources.py --out inbox` (link chia sẻ công khai; báo nguồn nào không tải được).
 - `type: file` → connector **Google Drive** (nếu host có): tìm theo `drive.file_id` hoặc trong `drive.folder_id` với tên chứa `drive.name_contains`, tải về `inbox/` **giữ nguyên tên**. Nhiều file khớp → tải hết (Python sẽ báo trùng).
-- `type: gsheet` → connector **Google Sheets** (`get_values`) → ghi `inbox/<id>.csv`, dòng đầu là tiêu đề.
+- `type: gsheet` (mỗi Sheet = 1 nhân viên) → connector **Google Sheets**: `get_spreadsheet` liệt kê tab (theo `sheets:` nếu có), `get_values` từng tab → ghi `inbox/<id>__<tên tab>.csv` (dòng đầu là tiêu đề dòng dữ liệu; giữ nguyên các dòng tiêu đề trang phía trên). Không có connector: `python scripts/fetch_sources.py --out inbox` (tài khoản dịch vụ hoặc link công khai) tải cả workbook `.xlsx`.
 - Chạy trên máy người dùng và có `local_path` → `python scripts/onboard.py collect --out inbox`.
 - Không có file → **không tạo file giả**; Python sẽ báo `missing_file`. Connector lỗi/hết quyền → làm mục "Lỗi hạ tầng".
 
@@ -112,6 +114,12 @@ Trình duyệt trong app: mở `https://chat.zalo.me`. Gặp QR/đăng nhập, k
 
 ### Hàng đợi Zalo
 Zalo chưa gửi được → xếp hàng: `python scripts/zalo_queue.py add out/<ngày>/result.json` (file `zalo-queue/pending.jsonl`), hoặc nếu `recipients.yaml › zalo_queue` có Sheet: connector Sheets `append_values` các dòng `zalo_queue_rows` (thời điểm · kỳ · tiêu đề · hội thoại · nội dung · `pending`). Chưa cấu hình gì → báo người dùng gửi tay nội dung `zalo_report.txt`.
+
+### 4b. Cập nhật Google Sheet tổng hợp (action `channel: sheet`, `send: true` — chỉ live và dữ liệu hợp lệ)
+Dữ liệu ghi nằm ở `sheet_update.json` (do Python tính, không sửa): `tabs` (ghi đè), `append` (nối thêm), `headers` (tiêu đề tab Lịch sử). Tab chưa có thì tạo.
+- Có connector Sheets: mỗi tab trong `tabs` → xoá vùng cũ (`batch_clear_values`) rồi `update_values` từ `A1` kiểu nhập liệu USER_ENTERED; tab trong `append` → `append_values` (thêm dòng tiêu đề nếu tab còn trống).
+- Không có connector: `python scripts/sheets_sync.py push out/<ngày>/sheet_update.json <spreadsheet_id>` (cần `GOOGLE_SERVICE_ACCOUNT_JSON`, Sheet chia sẻ quyền Biên tập cho email tài khoản dịch vụ).
+Lỗi ghi Sheet không được chặn email; nêu rõ trong báo cáo cuối. `dry-run`/`test`/bất thường → không ghi (Python đã đặt `send: false` hoặc không tạo action).
 
 ### 5. Nhật ký và báo lại
 `recipients.yaml › audit_log.enabled` và mode ≠ dry-run → `append_values` dòng `audit_row`. Trả lời ngắn: kỳ báo cáo, chế độ, trạng thái, số vấn đề (nêu tiêu đề từng vấn đề nghiêm trọng), việc **đã gửi** và **đã bỏ qua/xếp hàng** (Zalo), nơi xem `out/<ngày>/report.html`.

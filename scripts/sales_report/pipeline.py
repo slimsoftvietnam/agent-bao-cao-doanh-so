@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-from . import anomalies, dashboard, excel_export, metrics, render
+from . import anomalies, dashboard, excel_export, metrics, render, sheet_tables
 from .config import load_config
 from .loader import load_all
 from .parsing import fmt_vnd
@@ -124,9 +124,15 @@ def run(inbox: str | Path, out_dir: str | Path, config_dir: str | Path, mode: st
     subject = f"{(cfg['recipients'].get('email') or {}).get('subject_prefix', '[Báo cáo doanh số]')} {title}"
     if status != "anomaly":
         m = metrics.compute(load.data, rd, cfg, kind)
+        ss = cfg["recipients"].get("summary_sheet") or {}
+        ss = ss if ss.get("enabled") and ss.get("spreadsheet_id") else {}
+        m["summary_sheet_url"] = ss.get("url") or (f"https://docs.google.com/spreadsheets/d/{ss['spreadsheet_id']}" if ss.get("spreadsheet_id") else "")
         subject += f" – {fmt_vnd(m['day_revenue'])}"
         data = dashboard.embed_data(load.data, m, cfg, issues, len(load.files), now.strftime("%H:%M %d/%m/%Y"), rd)
         (out / "report.html").write_text(dashboard.dashboard_html(data, banner_text), encoding="utf-8")
+        upd = sheet_tables.build(m, load.data, cfg, issues, now.strftime("%Y-%m-%d %H:%M"), status)
+        (out / "sheet_update.json").write_text(json.dumps(upd, ensure_ascii=False), encoding="utf-8")
+        result_files["sheet_update"] = "sheet_update.json"
         xlsx = excel_export.build_workbook(out / f"Tong-hop-doanh-so-{rd.isoformat()}.xlsx", load.data, m, cfg, issues, files_info)
         (out / "email.html").write_text(render.report_html(m, issues, brand, banner), encoding="utf-8")
         (out / "email_compact.html").write_text(render.compact_email_html(m, brand, banner_text), encoding="utf-8")
@@ -144,6 +150,10 @@ def run(inbox: str | Path, out_dir: str | Path, config_dir: str | Path, mode: st
 
     actions = _dispatch(mode, status, cfg, subject, p("report.html"), p(f"Tong-hop-doanh-so-{rd.isoformat()}.xlsx"), p("email.html"), p("email_compact.html"), p("alert.html"),
                         p("zalo_report.txt"), p("zalo_alert.txt"), dd, brand)
+    if m is not None and m["summary_sheet_url"]:
+        # Ghi bảng tổng hợp vào Google Sheet cố định: chỉ khi live và dữ liệu hợp lệ (bất thường -> không cập nhật)
+        actions.append({"channel": "sheet", "kind": "summary", "spreadsheet_id": cfg["recipients"]["summary_sheet"]["spreadsheet_id"],
+                        "url": m["summary_sheet_url"], "file": p("sheet_update.json"), "send": mode == "live"})
     result = {
         "kind": kind, "period_title": title, "smtp_available": bool(os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD")),
         "report_date": rd.isoformat(), "generated_at": now.isoformat(timespec="seconds"), "mode": mode,

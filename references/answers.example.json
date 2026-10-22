@@ -11,9 +11,11 @@
   "zalo_group": "Nhóm Kinh doanh ABC",
   "zalo_owner": "",
   "zalo_queue_sheet_url": "https://docs.google.com/spreadsheets/d/XXXXXXXX/edit",
+  "summary_sheet_url": "https://docs.google.com/spreadsheets/d/SSSSSSSS/edit",
   "audit_sheet_url": "",
   "sources": [
-    {"owner": "Nguyễn Văn An", "local_path": "C:/du-lieu/Doanh_so_An_T10.xlsx", "drive_url": "https://drive.google.com/drive/folders/XXXXXXXX", "monthly_target": 120000000},
-    {"owner": "Trần Thị Bình", "drive_url": "https://docs.google.com/spreadsheets/d/YYYYYYYY/edit", "sheet_name": "Chi tiết", "monthly_target": 145000000}
+    {"owner": "Nguyễn Văn An", "sheet_url": "https://docs.google.com/spreadsheets/d/AAAAAAAA/edit", "monthly_target": 120000000},
+    {"owner": "Trần Thị Bình", "sheet_url": "https://docs.google.com/spreadsheets/d/BBBBBBBB/edit", "sheets": ["Doanh số"], "monthly_target": 145000000},
+    {"owner": "Lê Minh Chi", "local_path": "C:/du-lieu/DoanhSo_Chi_T10.xlsx", "drive_url": "https://drive.google.com/file/d/CCCCCCCC/view", "monthly_target": 150000000}
   ]
 }

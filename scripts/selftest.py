@@ -191,6 +191,86 @@ with tempfile.TemporaryDirectory() as t:
     msg = send_mail.build(r["actions"][0], "x@y.z")
     check("gửi thư: có file .xlsx và .html đính kèm", sorted(p.get_filename().rsplit(".", 1)[1] for p in msg.iter_attachments()) == ["html", "xlsx"])
 
+# --- Google Sheet: mỗi Sheet = 1 nhân viên (link cố định) + Sheet tổng hợp kết quả
+import sheets_sync  # noqa: E402
+from sales_report.loader import load_file  # noqa: E402
+import yaml as _yaml  # noqa: E402
+check("gsheet: URL xlsx (mọi tab) / gid / tên tab",
+      source_url({"id": "a", "type": "gsheet", "gsheet": {"spreadsheet_id": "S"}})[0].endswith("/export?format=xlsx")
+      and source_url({"id": "a", "type": "gsheet", "gsheet": {"spreadsheet_id": "S", "gid": "12"}})[0].endswith("format=csv&gid=12"))
+with tempfile.TemporaryDirectory() as t:
+    build(Path(t) / "in", "ok")
+    cols = _yaml.safe_load(Path(CONFIG / "sources.yaml").read_text(encoding="utf-8"))["columns"]
+    dung = Path(t) / "in" / "BaoCao_Dung_2026-10.xlsx"
+    ok_tab = load_file(dung, {"id": "d", "owner": "D", "sheets": ["Chi tiết"]}, cols)
+    no_tab = load_file(dung, {"id": "d", "owner": "D", "sheets": ["Tổng quan"]}, cols)
+    check("gsheet: giới hạn tab theo nguồn (sheets: [...])", ok_tab.n_rows > 100 and no_tab.n_rows == 0 and no_tab.structure_error)
+    # Sheet tổng hợp: bảng kết quả, kế hoạch gọi API, bảo vệ khi bất thường / không live
+    cfg2 = Path(t) / "cfg"
+    shutil.copytree(CONFIG, cfg2)
+    rec = cfg2 / "recipients.yaml"
+    rec.write_text(rec.read_text(encoding="utf-8").replace("example.com", "congty.vn")
+                   + "\nsummary_sheet:\n  enabled: true\n  spreadsheet_id: SUM123\n  url: https://docs.google.com/spreadsheets/d/SUM123\n", encoding="utf-8")
+    r = run(Path(t) / "in", Path(t) / "out", cfg2, "live", RD, NOW)
+    upd = json.loads(Path(r["outputs"]["sheet_update"]).read_text(encoding="utf-8"))
+    ppl = upd["tabs"]["Theo người"]
+    check("sheet tổng hợp: 10 người + dòng TỔNG khớp Python", len(ppl) == 12 and ppl[-1][1] == "TỔNG"
+          and abs(sum(x[2] for x in ppl[1:-1]) - r["metrics"]["day_revenue"]) < 1 and abs(ppl[-1][2] - r["metrics"]["day_revenue"]) < 1)
+    check("sheet tổng hợp: có tab Tổng quan/Sản phẩm/Theo ngày + dòng Lịch sử", set(upd["tabs"]) == {"Tổng quan", "Theo người", "Sản phẩm", "Theo ngày"}
+          and len(upd["append"]["Lịch sử"][0]) == len(upd["headers"]["Lịch sử"]))
+    act = [a for a in r["actions"] if a["channel"] == "sheet"]
+    check("sheet tổng hợp: live -> ghi; link đưa vào Zalo", act and act[0]["send"] and "SUM123" in Path(r["outputs"]["zalo"]).read_text(encoding="utf-8"))
+    check("sheet tổng hợp: link có trong email và báo cáo HTML", "SUM123" in Path(r["outputs"]["email"]).read_text(encoding="utf-8")
+          and "SUM123" in Path(r["outputs"]["email_compact"]).read_text(encoding="utf-8") and "SUM123" in Path(r["outputs"]["report"]).read_text(encoding="utf-8"))
+    r_dry = run(Path(t) / "in", Path(t) / "out_d", cfg2, "dry-run", RD, NOW)
+    check("sheet tổng hợp: dry-run không ghi", [a["send"] for a in r_dry["actions"] if a["channel"] == "sheet"] == [False])
+    build(Path(t) / "bad", "missing")
+    r_bad = run(Path(t) / "bad", Path(t) / "out_b", cfg2, "live", RD, NOW)
+    check("sheet tổng hợp: dữ liệu bất thường -> không cập nhật Sheet", not any(a["channel"] == "sheet" for a in r_bad["actions"]))
+    calls = sheets_sync.plan(upd, "SUM123", existing_tabs=["Tổng quan"], history_empty=True)
+    kinds = [(c["method"], c["url"].split("/spreadsheets/")[1].split("?")[0][-28:]) for c in calls]
+    check("sheets_sync: thêm tab thiếu, ghi đè 4 tab, nối Lịch sử kèm tiêu đề",
+          calls[0]["url"].endswith(":batchUpdate") and len(calls[0]["body"]["requests"]) == 4
+          and sum(c["method"] == "PUT" for c in calls) == 4 and calls[-1]["url"].count(":append") == 1
+          and calls[-1]["body"]["values"][0] == upd["headers"]["Lịch sử"], str(kinds))
+
+    class FakeResp:
+        ok, status_code = True, 200
+        def __init__(self, body=None): self._b = body or {}
+        def json(self): return self._b
+        def raise_for_status(self): pass
+
+    class FakeSession:
+        def __init__(self): self.log = []
+        def get(self, url, **k):
+            self.log.append(("GET", url))
+            return FakeResp({"sheets": [{"properties": {"title": "Tổng quan"}}, {"properties": {"title": "Lịch sử"}}], "values": [["x"]]})
+        def request(self, m, url, json=None):
+            self.log.append((m, url)); return FakeResp()
+
+    fs = FakeSession()
+    out_log = sheets_sync.push(upd, "SUM123", fs)
+    check("sheets_sync: push qua phiên giả (không cần mạng), Lịch sử đã có tiêu đề thì không thêm lại",
+          len(out_log) == len(fs.log) - 2 and not any("header" in str(x) for x in out_log))
+
+# --- onboarding với link Google Sheet
+with tempfile.TemporaryDirectory() as t:
+    cfgdir = Path(t) / "config"
+    shutil.copytree(CONFIG, cfgdir)
+    ans = {"brand": "Co", "frequency": "weekly", "report_email": ["a@congty.vn"],
+           "summary_sheet_url": "https://docs.google.com/spreadsheets/d/SUMMARY123/edit#gid=0",
+           "sources": [{"owner": "Nguyễn Văn An", "sheet_url": "https://docs.google.com/spreadsheets/d/AAA111/edit#gid=1234"},
+                       {"owner": "Trần Thị Bình", "sheet_url": "https://docs.google.com/spreadsheets/d/BBB222/edit?usp=sharing", "sheets": ["Doanh số"]}]}
+    (Path(t) / "a.json").write_text(_json.dumps(ans, ensure_ascii=False), encoding="utf-8")
+    env = dict(os.environ, BCDS_CONFIG_DIR=str(cfgdir), PYTHONIOENCODING="utf-8")
+    subprocess.run([sys.executable, str(HERE / "onboard.py"), "write-config", str(Path(t) / "a.json")], env=env, capture_output=True, text=True, encoding="utf-8")
+    src = _yaml.safe_load(Path(cfgdir / "sources.yaml").read_text(encoding="utf-8"))["sources"]
+    rec = _yaml.safe_load(Path(cfgdir / "recipients.yaml").read_text(encoding="utf-8"))
+    check("onboard: link Google Sheet -> spreadsheet_id/gid/tab, mỗi Sheet 1 nhân viên",
+          [x["gsheet"]["spreadsheet_id"] for x in src] == ["AAA111", "BBB222"] and src[0]["gsheet"]["gid"] == "1234" and src[1]["sheets"] == ["Doanh số"]
+          and all(x["type"] == "gsheet" for x in src))
+    check("onboard: link Sheet tổng hợp cố định lưu vào config", rec["summary_sheet"]["spreadsheet_id"] == "SUMMARY123" and rec["summary_sheet"]["enabled"])
+
 # --- test mode: chỉ người phụ trách; live bị chặn khi còn email mẫu
 test = scenario("ok", "test")
 check("test: chỉ gửi người phụ trách", all(a["to"] == ["nguoi.phu.trach@example.com"] for a in test["actions"] if a["channel"] == "gmail"))

@@ -27,3 +27,10 @@ audit_log:
   enabled: false
   spreadsheet_id: "DAN_SPREADSHEET_ID_NHAT_KY"
   sheet_name: "Reports"      # cột: thời điểm | ngày báo cáo | chế độ | trạng thái | DT ngày | DT lũy kế | số lỗi nặng | số lưu ý | hành động
+
+# Google Sheet TỔNG HỢP kết quả (1 file cố định, link không đổi). Mỗi kỳ: ghi đè tab Tổng quan / Theo người / Sản phẩm / Theo ngày,
+# nối thêm 1 dòng vào tab Lịch sử. Chỉ ghi khi chạy live và dữ liệu hợp lệ.
+summary_sheet:
+  enabled: false
+  spreadsheet_id: "DAN_SPREADSHEET_ID_TONG_HOP"
+  url: ""

@@ -157,7 +157,11 @@ def load_file(path: Path, source: Optional[dict], columns_cfg: dict,
 
     owner = source["owner"] if source else path.stem
     rows_out: list[dict] = []
+    only = [norm(x) for x in (source or {}).get("sheets", [])]
     for sheet_name, raw in sheets.items():
+        if only and norm(sheet_name) not in only:
+            res.sheets_skipped.append(f"{sheet_name} (không nằm trong danh sách tab của nguồn)")
+            continue
         if raw is None or raw.empty:
             res.sheets_skipped.append(f"{sheet_name} (trống)")
             continue

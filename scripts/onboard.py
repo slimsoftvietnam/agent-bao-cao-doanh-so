@@ -48,6 +48,11 @@ def drive_id(url: str) -> tuple[str, str]:
     return "", ""
 
 
+def sheet_gid(url: str) -> str:
+    m = re.search(r"[#?&]gid=(\d+)", url or "")
+    return m.group(1) if m else ""
+
+
 def file_pattern(name: str) -> str:
     """'Doanh_so_An_T10.xlsx' -> 'Doanh_so_An*' (bỏ đuôi tháng/năm/số thứ tự để lần sau file mới vẫn khớp)."""
     stem = Path(name).stem
@@ -157,11 +162,14 @@ def cmd_write_config(a) -> int:
             sid += "_2"
         seen.add(sid)
         entry = {"id": sid, "owner": s["owner"], "monthly_target": s.get("monthly_target")}
-        kind, did = drive_id(s.get("drive_url", ""))
+        link = s.get("sheet_url") or s.get("drive_url", "")   # mỗi Google Sheet = 1 nhân viên; link cố định
+        kind, did = drive_id(link)
         name = Path(s["local_path"]).name if s.get("local_path") else s.get("file_name", "")
         if kind == "sheet":
             entry["type"] = "gsheet"
-            entry["gsheet"] = {"spreadsheet_id": did, "sheet_name": s.get("sheet_name", "")}
+            entry["gsheet"] = {"spreadsheet_id": did, "url": link.split("#")[0], "sheet_name": s.get("sheet_name", ""), "gid": sheet_gid(link) or None}
+            if s.get("sheets"):
+                entry["sheets"] = list(s["sheets"])   # chỉ đọc các tab này (mặc định: mọi tab có bảng)
             entry["file_patterns"] = [f"{sid}*"]
         else:
             entry["type"] = "file"
@@ -185,6 +193,8 @@ def cmd_write_config(a) -> int:
         "email": {"subject_prefix": ans.get("subject_prefix", "[Báo cáo doanh số]")},
         "zalo_queue": {"enabled": bool(ans.get("zalo_queue_sheet_url")), "spreadsheet_id": drive_id(ans.get("zalo_queue_sheet_url", ""))[1],
                        "sheet_name": "ZaloQueue"},
+        "summary_sheet": {"enabled": bool(ans.get("summary_sheet_url")), "spreadsheet_id": drive_id(ans.get("summary_sheet_url", ""))[1],
+                          "url": (ans.get("summary_sheet_url") or "").split("#")[0]},
         "audit_log": {"enabled": bool(ans.get("audit_sheet_url")), "spreadsheet_id": drive_id(ans.get("audit_sheet_url", ""))[1],
                       "sheet_name": "Reports"},
     }
@@ -226,7 +236,8 @@ def cmd_collect(a) -> int:
 
 WORKFLOW = """name: Báo cáo doanh số tự động
 # Tạo bởi scripts/onboard.py make-workflow từ config/schedule.yaml. Chạy trên máy chủ GitHub — không cần mở máy, không cần agent.
-# Cần repo RIÊNG TƯ (config có email) và secrets: GMAIL_USER, GMAIL_APP_PASSWORD (mật khẩu ứng dụng Gmail).
+# Cần repo RIÊNG TƯ (config có email) và secrets: GMAIL_USER, GMAIL_APP_PASSWORD (mật khẩu ứng dụng Gmail);
+# GOOGLE_SERVICE_ACCOUNT_JSON (tuỳ chọn): đọc Google Sheet riêng tư của nhân viên và ghi Sheet tổng hợp.
 on:
   schedule:
     - cron: "{cron}"   # {desc}
@@ -250,6 +261,7 @@ jobs:
         env:
           GMAIL_USER: ${{{{ secrets.GMAIL_USER }}}}
           GMAIL_APP_PASSWORD: ${{{{ secrets.GMAIL_APP_PASSWORD }}}}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{{{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}}}   # đọc Sheet riêng tư + ghi Sheet tổng hợp
         run: python scripts/auto_run.py --mode ${{{{ github.event.inputs.mode || 'live' }}}}
       - name: Lưu hàng đợi Zalo (gửi bù khi người dùng bật máy)
         run: |

@@ -44,6 +44,13 @@ def main() -> int:
     print(f"Kỳ {res['period_title']} · trạng thái {res['status']} · {res['counts']}")
     for i in res["issues"]:
         print(f"  [{i['severity']}] {i['title']}")
+    for act in (x for x in res["actions"] if x["channel"] == "sheet" and x["send"]):
+        try:
+            import sheets_sync
+            for line in sheets_sync.push(json.loads(Path(act["file"]).read_text(encoding="utf-8")), act["spreadsheet_id"]):
+                print("Sheet tổng hợp:", line)
+        except Exception as e:  # noqa: BLE001 — Sheet lỗi không được chặn email
+            print(f"KHÔNG GHI ĐƯỢC SHEET TỔNG HỢP: {type(e).__name__}: {str(e)[:150]}", file=sys.stderr)
     if a.mode != "dry-run":
         print("Hàng đợi Zalo:", json.dumps([r["id"] for r in zalo_queue.add_from_result(res["result_path"])]))
     try:

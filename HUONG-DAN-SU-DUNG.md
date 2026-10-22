@@ -12,8 +12,9 @@ Gõ `Thiết lập báo cáo doanh số`. Agent hỏi:
 
 | Câu hỏi | Bạn trả lời |
 |---|---|
-| File Excel của từng người | Đường dẫn file/thư mục hoặc link Drive/Sheets. Agent phân tích và báo lại cấu trúc từng file để bạn xác nhận tên người bán |
+| File Excel hoặc **link Google Sheet** của từng người (mỗi Sheet một nhân viên) | Đường dẫn file/thư mục hoặc link Drive/Sheets. Agent phân tích và báo lại cấu trúc từng file để bạn xác nhận tên người bán |
 | Mục tiêu doanh số tháng | Mỗi người một số (có thể bỏ qua) |
+| Link Google Sheet tổng hợp | Một Sheet cố định để ghi kết quả (có thể bỏ qua) |
 | Email | Email nhận báo cáo · cc · email người phụ trách nhận **cảnh báo** khi dữ liệu bất thường |
 | Nhóm Zalo | Tên chính xác nhóm (có thể bỏ qua) |
 | Lịch chạy | *Hằng tuần sáng thứ Hai 8:00* → gửi báo cáo **tuần trước** · *Hằng ngày 8:00 T2–T6* → gửi báo cáo **ngày trước** · hoặc ngày/giờ khác |
@@ -21,6 +22,14 @@ Gõ `Thiết lập báo cáo doanh số`. Agent hỏi:
 Agent ghi cấu hình vào `config/`, **chạy thử** cho bạn xem báo cáo HTML + Excel, rồi hỏi có gửi thật ngay không, và cuối cùng đặt lịch.
 
 Muốn tự điền: sửa `config/sources.yaml`, `config/recipients.yaml`, `config/schedule.yaml` (hoặc tạo `answers.json` theo `references/answers.example.json` rồi `python scripts/onboard.py write-config answers.json`).
+
+### Google Sheet: mỗi nhân viên một Sheet + một Sheet tổng hợp
+
+- **Đầu vào:** gửi cho agent link Google Sheet của từng nhân viên (mỗi Sheet = một người). Link **cố định** — agent lưu vào `config/sources.yaml` (`gsheet.spreadsheet_id`), lần sau không hỏi lại; chỉ cần nhân viên cập nhật nội dung Sheet. Sheet nhiều tab: mặc định đọc mọi tab có bảng; chỉ muốn tab nào thì khai `sheets: ["Doanh số"]`. Cấu trúc cột mỗi Sheet có thể khác nhau.
+- **Đầu ra:** một Google Sheet tổng hợp cố định (`config/recipients.yaml › summary_sheet`). Mỗi kỳ agent ghi đè các tab *Tổng quan, Theo người, Sản phẩm, Theo ngày* và nối thêm một dòng vào tab *Lịch sử*. Link Sheet này có trong email, tin Zalo và báo cáo HTML. Dữ liệu bất thường, `dry-run` và `test` **không** ghi vào Sheet.
+- **Quyền truy cập:**
+  - Claude Code: connector Google Sheets của tài khoản bạn đọc/ghi được mọi Sheet bạn có quyền.
+  - Codex/GitHub Actions: tạo *tài khoản dịch vụ* Google (bật Sheets API + Drive API), tải khoá JSON, lưu vào biến `GOOGLE_SERVICE_ACCOUNT_JSON` (hoặc GitHub Secret cùng tên), rồi **chia sẻ** từng Sheet nhân viên (quyền Xem) và Sheet tổng hợp (quyền Biên tập) cho email của tài khoản dịch vụ. Không có khoá thì chỉ đọc được Sheet chia sẻ *Bất kỳ ai có đường liên kết* và không ghi được Sheet tổng hợp.
 
 ## 3. Ba chế độ chạy
 
